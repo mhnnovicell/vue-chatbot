@@ -48,31 +48,43 @@ const openai = new OpenAIApi(configuration);
 const state = reactive({
   question: '',
   messages: [{ id: 1, from: 'bot', text: 'Hello, how can I help you today?' }],
+  answer: '',
+});
+
+const products = ref([]);
+
+onMounted(async () => {
+  const response = await fetch('https://fakestoreapi.com/products');
+  const data = await response.json();
+  products.value = data;
 });
 
 const sendMessage = async () => {
-  const prompt = `What is ${state.question}?`;
+  const searchQuery = state.question;
+  const productMatches = [];
 
-  try {
-    // Use OpenAI to generate a response to the user's question
-    const result = await openai.completions.create({
-      engine: 'text-davinci-002',
-      prompt,
-      max_tokens: 100,
-      n: 1,
-      stop: '\n',
-    });
-
-    const answer = result.choices[0].text.trim();
-    console.log(`${prompt} ${answer}`);
-
-    // Save the answer as a message
-    state.messages.push({ id: Date.now(), from: 'bot', text: answer });
-  } catch (err) {
-    console.error(`Error generating response for ${prompt}`, err);
+  for (const product of products.value) {
+    const productTitle = product.title.toLowerCase();
+    if (productTitle.includes(searchQuery.toLowerCase())) {
+      productMatches.push(product);
+    }
   }
 
-  // Clear the input field
-  state.question = '';
+  let prompt = `The user is searching for ${searchQuery}. Please recommend a product from the following:\n`;
+
+  for (const product of productMatches) {
+    prompt += `- ${product.title}\n`;
+  }
+
+  const response = await openai.createCompletion({
+    model: 'text-davinci-003',
+    prompt: prompt,
+    max_tokens: 1,
+    temperature: 0,
+    n: 1,
+    stop: '\n',
+  });
+
+  state.answer = response.choices[0].text.trim();
 };
 </script>
